@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  flask_server:
+    build:
+      context: ./
+      dockerfile: Dockerfile-flask
+    ports:
+      - "5000:80"
+
+  tg_bot:
+    build:
+      context: ./
+      dockerfile: Dockerfile-telegram
