@@ -1,15 +1,10 @@
-FROM python:3
+FROM python:3-alpine3.7
 MAINTAINER Ameba Libre "amebalibre@mailbox.org"
-
-RUN mkdir /app
 
 WORKDIR /app
 
 COPY ./bot /app
 
-RUN apt-get update && apt-get upgrade -y && \
-    curl --silent https://bootstrap.pypa.io/get-pip.py | python && \
-    pip install -U pip && pip install pipenv && \
-    pipenv install --system
+RUN apk add -U gcc musl-dev libffi-dev openssl-dev && pip3.7 install pipenv && pipenv lock && pipenv install --system
 
 CMD [ "python", "./main.py" ]
