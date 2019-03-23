@@ -5,8 +5,7 @@ RUN mkdir /app
 
 WORKDIR /app
 
-# ADD my_script.py /
-COPY ./tg_keyforge /app
+COPY ./bot /app
 
 RUN apt-get update && apt-get upgrade -y && \
     curl --silent https://bootstrap.pypa.io/get-pip.py | python && \

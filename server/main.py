@@ -158,7 +158,6 @@ class KeyForge(Resource):
                 url=url,
 
             )
-        logger.warning(url)
         return jsonify(payload)
 
     # def delete(self, todo_id):

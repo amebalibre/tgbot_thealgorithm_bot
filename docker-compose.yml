@@ -1,14 +1,17 @@
 version: '3'
 
 services:
-  flask_server:
+  server:
     build:
       context: ./
-      dockerfile: Dockerfile-flask
+      dockerfile: flask.dockerfile
+  bot:
+    build:
+      context: ./
+      dockerfile: telegram.dockerfile
+    depends_on:
+      - server
+    volumes:
+      - ./bot:/app:rw
     ports:
-      - "5000:80"
-
-  tg_bot:
-    build:
-      context: ./
-      dockerfile: Dockerfile-telegram
+      - "80:80"
