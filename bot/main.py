@@ -24,21 +24,6 @@ from telegram.ext import (
     # ConversationHandler
 )
 
-quyznaro_respuestas = [
-    'Contigo no me hablo',
-    'Fulgencio, que te calles',
-    'Que meh eres',
-    'Ves con a contarselo a Chewaka',
-    'Eso es mentira',
-    'pene e.e',
-    'Que te caies caion',
-    'Ays, que risa me doy',
-    'Quiero comino',
-    'Vete a currar, que estas siempre igual',
-    'Illo ke me dehe ya',
-    'Esternocleidomastoideo',
-]
-
 # Load .env
 load_dotenv(dotenv_path=Path('.') / '.secret')
 load_dotenv(find_dotenv())
@@ -74,37 +59,33 @@ def get(bot, update, args):
     """Get a card."""
     messages = []
     try:
-        # FIXME remove this
-        uname = update.message.from_user.username
-        if(uname and uname.upper() == 'Quyznaro'.upper()):
-            messages.append(random.choices(quyznaro_respuestas))
-
-        else:
-            raw = update.message.text.replace('/get', '')
-            params = []
-            for m in re.findall(os.getenv('pattern_filter'), raw):
-                key = WEB_FILTERS[FILTERS.index(m[1:3])]
-                value = m[3:]
-                params.append('%s=%s' % (key, value))
-            url = '%s?%s' % (os.getenv('keyforge_api'), '&'.join(params))
-
-            r = requests.get(url)
-            if(r.status_code == 200):
-                values = r.json().values()
-                if(values and len(values) < 5):
-                    messages = [record.get('url') for record in values]
-                else:
-                    messages = ['/get n.%s' % (u.get('name')) for u in values][:5]
-                    messages.insert(0, 'There are many cards, try to be more specific')
+        raw = update.message.text.replace('/get', '')
+        params = []
+        for m in re.findall(os.getenv('pattern_filter'), raw):
+            key = WEB_FILTERS[FILTERS.index(m[1:3])]
+            value = m[3:]
+            params.append('%s=%s' % (key, value))
+        url = '%s?%s' % (os.getenv('keyforge_api'), '&'.join(params))
+        logger.debug('Summoning backing-service: %s' % (url))
+        r = requests.get(url)
+        if(r.status_code == 200):
+            values = r.json().values()
+            if(values and len(values) < 5):
+                messages = [record.get('url') for record in values]
             else:
-                msg = r.json().get('message')
+                messages = ['/get n.%s' % (u.get('name')) for u in values][:5]
+                messages.insert(0, 'There are many cards, try to be more specific')
+        else:
+            msg = r.json().get('message')
+            if(isinstance(msg, str)):
+                messages = [msg]
+            else:
                 messages = [', '.join([k + ': ' + v for k, v in msg.items()])]
 
     except(Exception) as e:
         logger.warning(e)
     finally:
         log(update)
-        logger.debug('Redirect to backing-service: %s' % (url))
         logger.debug('Data obtained: %s' % (messages))
         for message in messages:
             bot.send_message(
