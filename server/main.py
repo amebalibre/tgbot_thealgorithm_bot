@@ -17,8 +17,8 @@ app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = Settings.DATABASE_URI
 db = SQLAlchemy(app)
-
 utils = Utils()
+
 with open(Settings.LOGGING_PATH, 'r') as f:
     logging.config.dictConfig(yaml.safe_load(f.read()))
 logger = logging.getLogger(__name__)

@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-import os
 import re
 import requests
-from pathlib import Path
 import yaml
 import logging
 import logging.config
-import random
-from dotenv import load_dotenv, find_dotenv
 
 from telegram import (
     ParseMode,
@@ -24,23 +20,18 @@ from telegram.ext import (
     # ConversationHandler
 )
 
-# Load .env
-load_dotenv(dotenv_path=Path('.') / '.secret')
-load_dotenv(find_dotenv())
+from utils import Utils
+from utils import Settings
+
+utils = Utils()
 
 # Load logger config
-with open(os.getenv('logging'), 'r') as f:
-    config = yaml.safe_load(f.read())
-    logging.config.dictConfig(config)
+with open(Settings.LOGGING_PATH, 'r') as f:
+    logging.config.dictConfig(yaml.safe_load(f.read()))
 logger = logging.getLogger(__name__)
 
 
-NAY = 14573680
-FILTERS = ('l.', 'n.', 'h.', 't.', 's.', 'i.', 'r.', 'e.')
-WEB_FILTERS = ('lang', 'name', 'house', 'type', 'subtype', 'id', 'rarity', 'expansion')
-
-
-updater = Updater(token=os.getenv('token'))
+updater = Updater(token=Settings.TOKEN)
 dispatcher = updater.dispatcher
 
 
@@ -60,21 +51,16 @@ def get(bot, update, args):
     messages = []
     try:
         raw = update.message.text.replace('/get', '')
-        params = []
-        for m in re.findall(os.getenv('pattern_filter'), raw):
-            key = WEB_FILTERS[FILTERS.index(m[1:3])]
-            value = m[3:]
-            params.append('%s=%s' % (key, value))
-        url = '%s?%s' % (os.getenv('keyforge_api'), '&'.join(params))
+        url = '%s?%s' % (Settings.KEYFORGE_API, '&'.join(utils.verbalize_params(raw)))
         logger.debug('Summoning backing-service: %s' % (url))
         r = requests.get(url)
         if(r.status_code == 200):
             values = r.json().values()
-            if(values and len(values) < 5):
+            if(values and len(values) < 2):
                 messages = [record.get('url') for record in values]
             else:
-                messages = ['/get n.%s' % (u.get('name')) for u in values][:5]
-                messages.insert(0, 'There are many cards, try to be more specific')
+                cards = ', '.join([u.get('name') for u in values])
+                messages = ['There are many cards, try to be more specific: %s' % cards]
         else:
             msg = r.json().get('message')
             if(isinstance(msg, str)):
@@ -92,6 +78,23 @@ def get(bot, update, args):
                 chat_id=update.message.chat_id,
                 text=message,
             )
+
+
+def random(bot, update, args):
+    """Gets a random card."""
+    r = requests.get('%s/random/' % Settings.KEYFORGE_API)
+    if(r.status_code == 200):
+        messages = [record.get('url') for record in r.json().values()]
+    else:
+        messages = [r.json().get('message')]
+
+    log(update)
+    logger.debug('Random obtained: %s' % (messages))
+    for message in messages:
+        bot.send_message(
+            chat_id=update.message.chat_id,
+            text=message,
+        )
 
 
 def help(bot, update, args):
@@ -130,10 +133,12 @@ def unknown(bot, update):
 
 
 get_handler = CommandHandler('get', get, pass_args=True)
+random_handler = CommandHandler('random', help)
 help_handler = CommandHandler('help', help, pass_args=True)
 unknown_handler = MessageHandler(Filters.command, unknown)
 
 dispatcher.add_handler(get_handler)
+dispatcher.add_handler(random_handler)
 dispatcher.add_handler(help_handler)
 dispatcher.add_handler(unknown_handler)
 

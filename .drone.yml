@@ -1,0 +1,74 @@
+---
+pipeline:
+  build-bot:
+    image: docker
+    commands:
+      - docker build -t r.daemons.it/thealgorithm_bot -f telegram.dockerfile .
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    when:
+      event: push
+
+  build-server:
+    image: docker
+    commands:
+      - docker build -t r.daemons.it/thealgorithm_server -f flask.dockerfile .
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    when:
+      event: push
+
+  push-server:
+    image: docker
+    commands:
+      - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD r.daemons.it
+      - docker push r.daemons.it/thealgorithm_server
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    secrets: [docker_user, docker_password]
+    when:
+      event: push
+      branch: master
+
+  push-bot:
+    image: docker
+    commands:
+      - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD r.daemons.it
+      - docker push r.daemons.it/thealgorithm_bot
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    secrets: [docker_user, docker_password]
+    when:
+      event: push
+      branch: master
+
+  ssh:
+    image: appleboy/drone-ssh
+    host: daemons.it
+    username: drone
+    port: 6699
+    secrets: [ssh_key]
+    script:
+      - sudo docker pull registry.daemons.it/thealgorithm_server:latest
+      - sudo docker pull registry.daemons.it/thealgorithm_bot:latest
+      - sudo systemctl restart docker-algorithm_bot
+      - sudo systemctl restart docker-algorithm_server
+    when:
+      event: push
+      branch: master
+
+  notify-bad:
+    image: registry.daemons.it/drone-xmpp
+    message: "Beep, boop, soy un bot. El job ha ido mal: {build_link}"
+    secrets: [xmpp_user, xmpp_password, xmpp_room]
+    when:
+      status: [failure]
+      event: push
+
+  notify-good:
+    image: registry.daemons.it/drone-xmpp
+    secrets: [xmpp_user, xmpp_password, xmpp_room]
+    message: Beep, boop, soy un bot. El job de thealgorithm ha ido bien.
+    when:
+      status: [success]
+      event: push
