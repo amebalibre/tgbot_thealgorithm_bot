@@ -5,6 +5,8 @@ services:
     build:
       context: ./
       dockerfile: flask.dockerfile
+    volumes:
+      - keyforge-database:/app/db
   bot:
     build:
       context: ./
@@ -13,5 +15,14 @@ services:
       - server
     volumes:
       - ./bot:/app:rw
+  # [DEV] OPTIONAL: sqlite web client
+  sqlite:
+    image: sqrt3/sqlite-web
     ports:
-      - "80:80"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - keyforge-database:/db
+    command: /db/keyforge.db
+
+volumes:
+  keyforge-database:
