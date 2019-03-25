@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import re
 import requests
 import yaml
 import logging
@@ -20,10 +19,9 @@ from telegram.ext import (
     # ConversationHandler
 )
 
-from utils import Utils
-from utils import Settings
+import utils
+from settings import Settings
 
-utils = Utils()
 
 # Load logger config
 with open(Settings.LOGGING_PATH, 'r') as f:
@@ -46,38 +44,57 @@ def log(update):
     ))
 
 
-def get(bot, update, args):
-    """Get a card."""
+def card(bot, update, args):
+    lang = update.message.from_user.language_code
+    if(lang not in ('es', 'en', 'fr', 'it', 'de')):
+        lang = 'en'
+    logger.debug('lang of user: %s' % lang)
+    reply_to = update.message.chat_id
+    multi = False
     messages = []
+    raw = update.message.text.replace('/get ', '')
+    url = utils.formalize_request(Settings.KEYFORGE_API, lang, raw)
+    logger.debug('Summoning backing-service: %s' % (url))
     try:
-        raw = update.message.text.replace('/get', '')
-        url = '%s?%s' % (Settings.KEYFORGE_API, '&'.join(utils.verbalize_params(raw)))
-        logger.debug('Summoning backing-service: %s' % (url))
         r = requests.get(url)
+        logger.debug('request: %s' % r.status_code)
         if(r.status_code == 200):
             values = r.json().values()
+            logger.debug('Obtains from backing-service: %s' % values)
             if(values and len(values) < 2):
                 messages = [record.get('url') for record in values]
             else:
-                cards = ', '.join([u.get('name') for u in values])
-                messages = ['There are many cards, try to be more specific: %s' % cards]
-        else:
-            msg = r.json().get('message')
-            if(isinstance(msg, str)):
-                messages = [msg]
-            else:
-                messages = [', '.join([k + ': ' + v for k, v in msg.items()])]
+                reply_to = update.message.from_user.id
+                multi = True
+                for record in values:
+                    messages.append('`{id}`: `{name}` [{type}]'.format(
+                        id=record.get('id') or '<None>',
+                        name=record.get('name') or '<None>',
+                        type=record.get('type') or '<None>'
+                    ))
 
-    except(Exception) as e:
-        logger.warning(e)
-    finally:
-        log(update)
-        logger.debug('Data obtained: %s' % (messages))
+                messages = ['\n'.join(messages)]
+                logger.debug('Message: %s' % messages)
+        else:
+            messages = [r.json().get('message')]
+
         for message in messages:
-            bot.send_message(
-                chat_id=update.message.chat_id,
-                text=message,
-            )
+            if(multi):
+                bot.send_message(
+                    chat_id=reply_to,
+                    text=message,
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            else:
+                bot.send_message(
+                    chat_id=reply_to,
+                    text=message,
+                )
+    except(Exception) as e:
+        bot.send_message(
+            chat_id=update.message.chat_id,
+            text='ERROR! %s' % e,
+        )
 
 
 def random(bot, update, args):
@@ -132,14 +149,13 @@ def unknown(bot, update):
         text="Ignorant human... You are talking to the algorithm! Respect!!")
 
 
-get_handler = CommandHandler('get', get, pass_args=True)
+card_handler = CommandHandler('get', card, pass_args=True)
 random_handler = CommandHandler('random', help)
 help_handler = CommandHandler('help', help, pass_args=True)
 unknown_handler = MessageHandler(Filters.command, unknown)
 
-dispatcher.add_handler(get_handler)
+dispatcher.add_handler(card_handler)
 dispatcher.add_handler(random_handler)
 dispatcher.add_handler(help_handler)
-dispatcher.add_handler(unknown_handler)
 
 updater.start_polling()

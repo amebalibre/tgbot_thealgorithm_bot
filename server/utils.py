@@ -1,28 +1,10 @@
 # -*- coding: utf-8 -*-
 import csv
+from settings import Settings
 from collections import namedtuple
 
-from decouple import config
-from decouple import Csv
 
-
-class Settings:
-    DEBUG = config('DEBUG', default=False, cast=bool)
-    LOGGING_PATH = config('LOGGING_PATH')
-
-    CSV_DELIMITER = config('CSV_DELIMITER', default='|')
-    CSV_QUOTECHAR = config('CSV_QUOTECHAR', default="'")
-
-    DATABASE_PATH = config('DATABASE_PATH')
-    DATABASE_URI = config('DATABASE_URI')
-
-    QUERY_LIMIT = config('QUERY_LIMIT', default=5, cast=int)
-    SUPPORTED_LANG = \
-        config('SUPPORTED_LANG', default=('en'), cast=Csv(post_process=tuple))
-
-
-class Utils:
-
+class Utils():
     def add_filters(self, arg, args, query):
         """Add new filter into query and return it.
 
@@ -80,7 +62,7 @@ class Utils:
         data = []
         File = namedtuple('Point', ['model', 'path'])
         files = [
-            File(model, '%s/%s.csv' % (Settings.DATABASE_PATH, model.model))
+            File(model, '%s/%s.csv' % (Settings.DATABASE_PATH, model.__tablename__))
             for model in models
         ]
         for file in files:
@@ -98,7 +80,7 @@ class Utils:
                         data.append(payload)
         return data
 
-    def rel_models(self):
+    def rel_models(self, ):
         data = []
         subtype_path = '%s/%s.csv' % (Settings.DATABASE_PATH, 'card_subtype_rel')
         with open(subtype_path, newline='') as csvfile:

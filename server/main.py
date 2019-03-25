@@ -3,13 +3,15 @@ import logging
 import logging.config
 import random
 import yaml
+
 from flask import Flask
 from flask import jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask_msearch import Search
 from flask_restful import reqparse, abort, Api, Resource
+from flask_sqlalchemy import SQLAlchemy
 
 from utils import Utils
-from utils import Settings
+from settings import Settings
 
 
 # Load app, api and orm
@@ -17,6 +19,9 @@ app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = Settings.DATABASE_URI
 db = SQLAlchemy(app)
+search = Search()
+search.init_app(app)
+
 utils = Utils()
 
 with open(Settings.LOGGING_PATH, 'r') as f:
@@ -32,7 +37,9 @@ subtypes = db.Table(
 
 
 class Card(db.Model):
-    model = 'card'
+    __tablename__ = 'card'
+    __searchable__ = ['kf', 'expansion', 'name', 'house', 'type', 'rarity']
+
     id = db.Column(db.Integer, primary_key=True)
     kf = db.Column(db.String(3), nullable=False)
     expansion = db.Column(db.String(80))
@@ -54,7 +61,8 @@ class Card(db.Model):
 
 
 class House(db.Model):
-    model = 'house'
+    __searchable__ = 'house'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(7), nullable=False)
 
@@ -63,7 +71,8 @@ class House(db.Model):
 
 
 class Rarity(db.Model):
-    model = 'rarity'
+    __searchable__ = 'rarity'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(1), nullable=False)
     description = db.Column(db.String(8), nullable=False)
@@ -73,7 +82,8 @@ class Rarity(db.Model):
 
 
 class Subtype(db.Model):
-    model = 'subtype'
+    __searchable__ = 'subtype'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
 
@@ -82,7 +92,8 @@ class Subtype(db.Model):
 
 
 class Type(db.Model):
-    model = 'type'
+    __searchable__ = 'type'
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(8), nullable=False)
 
@@ -91,54 +102,21 @@ class Type(db.Model):
 
 
 # API
-class KeyForge(Resource):
+class Service(Resource):
+
     def __init__(self):
-
-        # Populate all CHOICES_
-        CHOICES_HOUSE = CHOICES_RARITY = CHOICES_TYPE = CHOICES_SUBTYPE = []
-        try:
-            CHOICES_HOUSE = [record.name for record in House.query.all()]
-            CHOICES_RARITY = [record.name for record in Rarity.query.all()]
-            CHOICES_SUBTYPE = [record.name for record in Subtype.query.all()]
-            CHOICES_TYPE = [record.name for record in Type.query.all()]
-        except Exception:
-            pass
-
-        # Expected params for API
-        defaults = dict(type=str, case_sensitive=False, trim=True)
         self.parser = reqparse.RequestParser()
-        self.parser.add_argument('id', **defaults)  # going to kf
-        self.parser.add_argument('name', **defaults)
-        self.parser.add_argument('expansion', **defaults)
-        self.parser.add_argument('house', choices=CHOICES_HOUSE, **defaults)
-        self.parser.add_argument(
-            'subtype', action='append', choices=CHOICES_SUBTYPE, **defaults)
-        self.parser.add_argument('type', choices=CHOICES_TYPE, **defaults)
-        self.parser.add_argument('rarity', choices=CHOICES_RARITY, **defaults)
+        self.parser.add_argument('criteria', type=str, case_sensitive=False, trim=True)
 
+    @app.route("/search")
     def get(self, lang='en'):
-        args = self.parser.parse_args(strict=True)
-        if(not any([value for value in args.values() if value])):
-            cards = Card.query.order_by(Card.id.desc()).limit(Settings.QUERY_LIMIT)
-
-        else:
-            logger.info('Finding on the library... [CRITERIA: %s]' % args)
-            query = Card.query
-            if(args.get('name')):
-                query = query.filter(Card.name.like(args.get('name')))
-            if(args.get('id')):
-                query = query.filter_by(kf=args.get('id'))
-            for field in ['expansion', 'house', 'type', 'rarity']:
-                query = utils.add_filters(field, args, query)
-            if(args.get('subtype')):
-                # TODO: .any no me vale. quiero .all pero no existe. investigar
-                query = query.filter(
-                    Card.subtypes.any(Subtype.name.in_(args.get('subtype'))))
-
-            cards = query.order_by(Card.id.desc()).limit(Settings.QUERY_LIMIT)
-            if(not cards):
-                abort(400, message='No card was found!')
-            logger.info('%s was found!' % cards)
+        criteria = self.parser.parse_args(strict=True).get('criteria')
+        cards = Card.query.order_by('kf').msearch(
+            criteria,
+            fields=['kf', 'expansion', 'name', 'house', 'type', 'rarity'],
+            limit=Settings.QUERY_LIMIT)
+        if(not cards):
+            abort(400, message='No card was found!')
 
         payload = utils.dictify(cards, lang)
         logger.debug('data was prepared to send')
@@ -156,7 +134,7 @@ class Random(Resource):
 
 
 # Routers
-api.add_resource(KeyForge, '/', '/<lang>/')
+api.add_resource(Service, '/', '/<lang>/')
 api.add_resource(Random, '/random/', '/<lang>/random/')
 
 
