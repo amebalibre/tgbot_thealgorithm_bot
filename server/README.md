@@ -60,4 +60,3 @@ https://keyforge-compendium.com/cards?utf8=%E2%9C%93&filterrific%5Bsearch_title%
 
 
 
-
