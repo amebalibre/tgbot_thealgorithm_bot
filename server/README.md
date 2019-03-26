@@ -56,7 +56,5 @@ import app; app.create_ddbb()
 
 # TODO
 
+
 https://keyforge-compendium.com/cards?utf8=%E2%9C%93&filterrific%5Bsearch_title%5D=&filterrific%5Bsearch_text%5D=&filterrific%5Bwith_traits%5D=&filterrific%5Bwith_power%5D=&filterrific%5Bwith_armor%5D=&filterrific%5Btype_like%5D=&filterrific%5Bhouse_like%5D=4&filterrific%5Brarity_like%5D=&filterrific%5Bwith_expansion%5D=1&filterrific%5Bwith_tags%5D=&filterrific%5Bsorted_by%5D=number_asc&commit=Filter+Results
-
-
-
